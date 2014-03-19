@@ -1,5 +1,4 @@
-DCSubToAE
-=========
+# DCSubToAE
 
 ExtendedScript plugin to import Subtitles into After Effects
 
@@ -16,7 +15,7 @@ The import right now is rather basic:
 - Interop: images are not supported
 
 
-How does it work?
+### How does it work?
 Rather simple, actually (once one manages to bend your mind around the ExtendedScript API - which more often than not is for from obvious...). What we do is use the Layer Marker facility of After Effects to write each subtitle as a Layer Marker's comment onto a fresh layer. We then use Text Animators to keyframe certain text attributes at the correct in- and out-times of the subtitles.
 
 The advantage of doing it this way:
@@ -42,5 +41,8 @@ if (n > 0) marker.key(n).comment;
 else '';
 ```
 
-Disclaimer:
+### Installation
+Just copy into your `Scripts\ScriptUI Panels\` folder
+
+### Disclaimer
 This script was created as an in-house tool to burn (and retime) subtitles for DCPs. I would not exactly call it well tested and error proof. I'd rather expect it to set your cat on fire and run screaming through town. Naked. But in most cases, with well behaving subtitle files, it does what it should. And that's something too, right?
