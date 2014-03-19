@@ -30,7 +30,7 @@ The disadvantage (compared to creating Text Document objects and keyframing thos
 
 The "Source Text" attribute of the Text Layer uses an expression (set up by the script too) to read the text from the Layer Markers:
 
-'''javascript
+```javascript
 n = 0; 
 t = 0; 
 if (marker.numKeys > 0)
