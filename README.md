@@ -40,7 +40,7 @@ if (marker.numKeys > 0)
 } 
 if (n > 0) marker.key(n).comment; 
 else '';
-
+```
 
 Disclaimer:
 This script was created as an in-house tool to burn (and retime) subtitles for DCPs. I would not exactly call it well tested and error proof. I'd rather expect it to set your cat on fire and run screaming through town. Naked. But in most cases, with well behaving subtitle files, it does what it should. And that's something too, right?
