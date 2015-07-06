@@ -1,11 +1,15 @@
-// DCSubToAE
-// 908video <908lab@908video.de>
+// v 0.12
 
-// v 0.10
-// Initial commit by Michael Auerswald
+// NOTES:
+// there is no validation of the XML yet
+// there is no evaluation of XML within the subtitle text yet
+
+//#include "json2.js"
 
 // GLOBALS
-var VERSION = "0.10-140319"
+var myXML;
+var xmlString;
+
 var FONTSIZE = 16;
 var FONTREGULAR = "ArialMT";
 var FONTITALIC = "Arial-ItalicMT";
@@ -25,7 +29,7 @@ var pickerFill, pickerStroke;
 var radioVAlignT,radioVAlignM,radioVAlignB;
 var radioHAlignL,radioHAlignC,radioHAlignM;
 var frameRateList = ['23.976', '24', '25', '29.97', '30', '48', '50', '60'];
-var xmlFileTypes = ['DCSubtitle', 'TimeXML', 'SubRipSRT'];
+var xmlFileTypes = ['DCSubtitle', 'TimeXML', 'SubRipSRT', 'FinalCut XMEML'];
 
 var theSubtitleFile;
 
@@ -40,8 +44,28 @@ function SubtitleFile() {
 	this.movieTitle = "";
 	this.reel = 0;
 	this.language = "";
-	this.raw = undefined;
+	this.xmlString = "";
+	this.xml = undefined;
 	this.count = 0;
+}
+
+function encode_utf8( s ) {
+    return unescape( encodeURIComponent( s ) );
+}
+
+function decode_utf8( s ) {
+    var unicoderegex = /\\u([\d\w]{4})/gi;
+    try {
+        var t = escape( s );
+        t = t.replace(unicoderegex, function (match, grp) {
+            return String.fromCharCode(parseInt(grp, 16));
+        });
+        //t = JSON.parse(t);
+        return decodeURIComponent(t);
+    }
+    catch(err) {
+        return err.message;
+    }
 }
 
 SubtitleFile.prototype.readXML = function() {
@@ -50,8 +74,8 @@ SubtitleFile.prototype.readXML = function() {
 		try {
 			this.fileName = this.file.name;
 			this.file.open('r');
-			var xmlString = this.file.read();
-			this.raw = new XML(xmlString);
+			this.xmlString = this.file.read();
+			this.xml = new XML(this.xmlString);
 			this.file.close();
 			return true;
 		} catch(err) {
@@ -67,7 +91,8 @@ SubtitleFile.prototype.readText = function() {
 		try {
 			this.fileName = this.file.name;
 			this.file.open('r');
-			this.raw = this.file.read();
+			this.xmlString = this.file.read();
+			this.xml = this.xmlString;
 			this.file.close();
 			return true;
 		} catch(err) {
@@ -91,8 +116,24 @@ function SubtitleEntry(text, inTime, outTime, framerate, inFade, outFade) {
 	this.fillcolor = [1,1,1];
 	this.justification = "center";
 }
+ 
+// SubtitleEntry.prototype.timeAsSeconds = function(t, fps) 
+// {
+// 	var u = t.split(':');
+// 	var h = Number(u[0]);
+// 	var m = Number(u[1]);
+// 	var s = Number(u[2]);
+// 	var ms = Number(u[3].substring(0,2));
+// 	return (h * 60 * 60) + (m * 60) + s + (ms/fps);
+// }
 
-// reads raw data from file
+// SubtitleEntry.prototype.timeInAsSeconds = function(fps) {return this.timeAsSeconds(this.timeIn, fps);}
+// SubtitleEntry.prototype.timeOutAsSeconds = function(fps) {return this.timeAsSeconds(this.timeOut, fps);}
+// SubtitleEntry.prototype.fadeInAsSeconds = function(fps) {return this.timeAsSeconds(this.fadeIn, fps);}
+// SubtitleEntry.prototype.fadeOutAsSeconds = function(fps) {return this.timeAsSeconds(this.fadeOut, fps);}
+
+
+
 function GetXMLFromFile() {
 	theSubtitleFile.file = File.openDialog("Choose A Subtitle XML File","Subtitles:*.xml;*.srt");
 	var res;
@@ -102,10 +143,10 @@ function GetXMLFromFile() {
 		var res = theSubtitleFile.readXML();
 		if (res != undefined)
 		{
-			theSubtitleFile.subtitleId = theSubtitleFile.raw.SubtitleID;
-			theSubtitleFile.movieTitle = theSubtitleFile.raw.MovieTitle;
-			theSubtitleFile.reel = theSubtitleFile.raw.ReelNumber;
-			theSubtitleFile.language = theSubtitleFile.raw.Language;
+			theSubtitleFile.subtitleId = theSubtitleFile.xml.SubtitleID;
+			theSubtitleFile.movieTitle = theSubtitleFile.xml.MovieTitle;
+			theSubtitleFile.reel = theSubtitleFile.xml.ReelNumber;
+			theSubtitleFile.language = theSubtitleFile.xml.Language;
 		}
 	}
 	else if (dropdownXmlFileType.selection.text == "TimeXML")
@@ -130,6 +171,17 @@ function GetXMLFromFile() {
 			theSubtitleFile.language = "n/a";
 		}
 	}
+	else if (dropdownXmlFileType.selection.text == "FinalCut XMEML")
+	{
+		var res = theSubtitleFile.readXML();
+		if (res != undefined)
+		{
+			theSubtitleFile.subtitleId = "n/a";
+			theSubtitleFile.movieTitle = theSubtitleFile.fileName;
+			theSubtitleFile.reel = "n/a";
+			theSubtitleFile.language = "n/a";
+		}
+	}
 
 	if (res != undefined)
 	{
@@ -145,8 +197,6 @@ function GetXMLFromFile() {
 	}
 }
 
-// a simple way to convert timecode string to float seconds
-// some formats use hundreds of frames instead of milliseconds as the last tuple, so the framerate has to be known!
 function timeCodeToSeconds(t, msbase)
 {
 	try
@@ -164,7 +214,6 @@ function timeCodeToSeconds(t, msbase)
 	}
 }
 
-// a simple way to convert timecode string to float seconds
 function timeCodeToSecondsSRT(t)
 {
 	try
@@ -196,23 +245,18 @@ function hexToRGB(hex)
 	return [r,g,b];
 }
 
-/**
- * Here's where the raw subtitle data is parsed into subtitle objects
- * XML can be read rather conveniently using E4X (ECMAScript for XML), text files like SRT....not so much
- * @param {string} raw - the raw string read from the subtitle file
- * @param {string} format - the parser format, usually selected via dropdown, e.g. "DCSubtitle"
- * @return {Array} subtitleArray - an Array of SubtitleEntry objects
- */
-function fileToSubtitleEntries(raw, format)
+function fileToSubtitleEntries(xml, format)
 {
 	var subtitleArray = new Array();
 	var counter = 0;
 
+    $.writeln(format);
+
 	if (format == "DCSubtitle")
 	{
-		theSubtitleFile.count = raw.Font.child("Font").length();
+		theSubtitleFile.count = xml.Font.child("Font").length();
 		
-		for each(var child in raw.Font.child("Font")){
+		for each(var child in xml.Font.child("Font")){
 			var s = new SubtitleEntry();
 			counter++;
 
@@ -241,9 +285,9 @@ function fileToSubtitleEntries(raw, format)
 	}
 	else if (format == "TimeXML")
 	{
-		theSubtitleFile.count = raw.child("Paragraph").length();
+		theSubtitleFile.count = xml.child("Paragraph").length();
 		
-		for each(var child in raw.child("Paragraph")){
+		for each(var child in xml.child("Paragraph")){
 			var s = new SubtitleEntry();
 			counter++;
 
@@ -266,7 +310,7 @@ function fileToSubtitleEntries(raw, format)
 		var srtStep = 0;
 		var s = new SubtitleEntry();
 		var counttext = 0;
-		var lines = raw.split("\n");
+		var lines = xml.split("\n");
 
 		for each(var line in lines)
 		{
@@ -315,8 +359,45 @@ function fileToSubtitleEntries(raw, format)
 			}
 		}
 	}
+    else if (format == "FinalCut XMEML")
+    {
+		theSubtitleFile.count = 0;
 
-	return subtitleArray;
+        for each(var track in xml.sequence.media.video.track)
+        {
+            for each(var generatoritem in track.generatoritem)
+            {
+                    for each(var param in generatoritem.effect.parameter) {
+                        if (param["parameterid"].toString() != "str") continue;
+                        
+                        var s = new SubtitleEntry();
+                        counter++;
+                        theSubtitleFile.count++;
+
+                        clearOutput();
+                        writeLn("Reading Subs: " + counter.toString() + "/" + theSubtitleFile.count.toString() + "(" + (counter/theSubtitleFile.count*100).toFixed(1).toString() + "%)");
+
+                        s.framerate = parseFloat(generatoritem.rate["timebase"].text()); // FRAMERATESOURCE;
+                        FRAMERATESOURCE = s.framerate;
+                        s.timeIn = parseFloat(generatoritem["start"].text()) / FRAMERATESOURCE;
+                        s.timeOut = parseFloat(generatoritem["end"].text()) / FRAMERATESOURCE;
+                        s.fadeIn = -1;
+                        s.fadeOut = -1;
+                        s.italic = false;
+                        s.fontName = FONTREGULAR;
+                        
+                        s.text = param["value"].toString();
+                        var regex = new RegExp("&#13;", "g");
+                        s.text = s.text.replace(regex, "\n");
+                        s.text = decode_utf8(s.text);
+                        $.writeln(s.text);
+                        subtitleArray.push(s);
+                    } // for each parameter
+            } // for each generator
+        } // for each track
+    }
+
+    return subtitleArray;
 }
 
 function onCheckboxTimebase()
@@ -333,19 +414,6 @@ function onCheckboxTimebase()
 	}
 }
 
-/**
- * Creates an ADBE Text Document
- * not actually used right now (in favour of using Layer Markers instead)
- * @param {AVLayer} theLayer - the layer the document should be created for
- * @param {number} fontSize
- * @param {string} fontName - Postscript name of font (e.g ArialMT)
- * @param {number} doctext - Text to put into the document
- * @param {Array} colorFill - [0..1,0..1,0..1]
- * @param {Array} colorStroke - [0..1,0..1,0..1]
- * @param {number} strokeWidth
- * @param {number} justification - ParagraphJustification.CENTER_JUSTIFY|RIGHT_JUSTIFY|LEFT_JUSTIFY
- * @return {ADBE Text Document} doc - an ADBE Text Document
- */
 function setTextLayerProperties( theLayer, fontSize, fontName, doctext, colorFill, colorStroke, strokeWidth, justification ) {
 	var doc = theLayer.property("ADBE Text Properties").property("ADBE Text Document").value;
 	// doc.resetCharStyle();
@@ -367,15 +435,6 @@ function setTextLayerProperties( theLayer, fontSize, fontName, doctext, colorFil
 	return doc;
 }
 
-/**
- * Helper function to create UI groups
- * @param {object} parent - parent UI group
- * @param {string} orientation - row or column
- * @param {Array} fill - ["left","fill"]
- * @param {Array} preferredSize - [x,y]
- * @param {Array} minimumSize - [x,y]
- * @return {object} grp - the created group
- */
 function newGroup(parent, orientation, fill, preferredSize, minimumSize)
 {
 	var grp = parent.add('group', undefined, ''); 
@@ -401,11 +460,11 @@ function createUI(thisObj) {
     myPanel.alignChildren = ["fill","fill"];
     myPanel.orientation = "column";
 
-    var grpXmlType = newGroup(myPanel, 'row', ["fill","fill"], [300,30], [300,30]);
-	grpXmlType.add('statictext',[undefined,undefined,80,16],"File Type:");
+    var grpXmlType = newGroup(myPanel, 'row', ["fill","fill"], [300,30], [300,20]);
+	grpXmlType.add('statictext',[undefined,undefined,80,16],"XML Type:");
 	dropdownXmlFileType = grpXmlType.add('dropdownlist', undefined, xmlFileTypes);
 	dropdownXmlFileType.selection = 0;
-    btOpenFile = grpXmlType.add("button", [undefined,undefined,100,25], "Open File").onClick = GetXMLFromFile;
+    btOpenFile = grpXmlType.add("button", [undefined,undefined,100,25], "Open XML File").onClick = GetXMLFromFile;
 
     myPanel.add ("panel");
 
@@ -478,12 +537,10 @@ function createUI(thisObj) {
 			editStrokeWidth = grpStroke.add('edittext',[undefined,undefined,50,20],STROKEWIDTH);
 			editStrokeWidth.onChange = OnStrokeWidthChange;
 
-	var grpButtonRun = newGroup(myPanel, 'column', ["fill","top"], [300,30], [300,30]);
-    	btRun = grpButtonRun.add("button", undefined, "Run Script").onClick = CreateSubtitleLayer;
+	var grpButtonRun = newGroup(myPanel, 'row', ["fill","top"], [300,25], [300,25]);
+    	btRun = grpButtonRun.add("button", [undefined,undefined,100,25], "Run Script").onClick = CreateSubtitleLayer;
  		btRun.enabled = false;
- 	var grpCredits = newGroup(myPanel, 'row', ["fill","top"], [300,20], [300,20]);
- 		grpCredits.add('statictext', [undefined,undefined,200,20], "http://www.908video.de/lab" );
- 		grpCredits.add('statictext', undefined, "v" + VERSION );
+ 	
  	myPanel.layout.layout();
 
  	return myPanel;   
@@ -534,7 +591,7 @@ function CreateSubtitleLayer()
 	var startTime = new Date().getTime();
 	FRAMERATESOURCE = parseFloat(dropdownFrom.selection.text);
 
-	theSubtitleFile.subtitles = fileToSubtitleEntries(theSubtitleFile.raw, dropdownXmlFileType.selection.text);
+	theSubtitleFile.subtitles = fileToSubtitleEntries(theSubtitleFile.xml, dropdownXmlFileType.selection.text);
 
 	var count = 0;
 	var myComp = app.project.activeItem;
@@ -555,30 +612,6 @@ function CreateSubtitleLayer()
 	var animatorStyleAnchorPoint = animatorStyle.Properties.addProperty("ADBE Text Anchor Point 3D");
 	var animatorStyleOpacity = animatorStyle.Properties.addProperty("ADBE Text Opacity");
 
-	// These are just leftovers from a previous version where subtitles were added as ADBE Text Document objects
-	// This was slower, but had certain advantages and disadvanteges
-	// May return as an optional way to create keys
-
-	// // Initial key on frame 0
-	// var doc = theLayer.property("ADBE Text Properties").property("ADBE Text Document").value;
-	// doc.resetCharStyle();
-	// if (radioHAlignC == true)
-	// 	doc.justification = ParagraphJustification.CENTER_JUSTIFY;
-	// else if (radioHAlignR == true)
-	// 	doc.justification = ParagraphJustification.RIGHT_JUSTIFY;
-	// else
-	// 	doc.justification = ParagraphJustification.LEFT_JUSTIFY;
-	// doc.fontSize = FONTSIZE;
-	// doc.fillColor = pickerFill;
-	// doc.strokeColor = pickerStroke;
-	// doc.strokeWidth = STROKEWIDTH;
-	// doc.font = FONTREGULAR;
-	// doc.strokeOverFill = true;
-	// doc.applyStroke = true;
-	// doc.applyFill = true;
-	// doc.text = "";
-	// subtitleTextLayer.property("ADBE Text Properties").property("ADBE Text Document").setValueAtTime(0, doc);
-
 	var timeBase = 1.0;
 	if (checkboxChangeTimebase.value == true) 
 	{
@@ -591,20 +624,17 @@ function CreateSubtitleLayer()
 		count++;
 		clearOutput();
 		writeLn("Writing keys... " + count.toString() + "/" + theSubtitleFile.count.toString() + "(" + (count/theSubtitleFile.count*100).toFixed(1).toString() + "%)");
-
+         DCSubToAEPanel.update();
 		var timeIn = sub.timeIn * timeBase;
-		// $.writeln(timeIn);
+		//$.writeln(timeIn);
 		var timeOut = sub.timeOut * timeBase;
-		// $.writeln(timeOut);
-		// $.writeln("--");
+		//$.writeln(timeOut);
+		//$.writeln("--");
 		if (count == 1) subtitleTextLayer.inPoint = timeIn;
-		if (count == theSubtitleFile.count)
-		{
-			myComp.duration = Math.max(timeOut, myComp.duration);
-			subtitleTextLayer.outPoint = timeOut;
-		}
+         subtitleTextLayer.outPoint = timeOut;
+         myComp.duration = Math.max(timeOut, myComp.duration);
 
-		var fillColor = sub.fillcolor;
+         var fillColor = sub.fillcolor;
 		var strokeColor = sub.strokecolor;
 
 		if (checkboxOverrideColors.value == false)
@@ -633,6 +663,7 @@ function CreateSubtitleLayer()
 	}
 
 	// make all keys HOLD (square animation curves)
+	// clearOutput();
 	write("Squaring keys.");
 	for (var i = animatorStyleAnchorPoint.numKeys; i > 0; i--) {
 	    animatorStyleAnchorPoint.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
@@ -657,8 +688,6 @@ function CreateSubtitleLayer()
 	for (var i = animatorStyleStrokeWidth.numKeys; i > 0; i--) {
 	    animatorStyleStrokeWidth.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
 	};
-	// Fixing the anchor line (to cater for descenders) was made optional, since this made the layer creation slower (several times, since the script
-	// has to sample (and thus render) the layer at every keyframe to get the boundary box)
 	if (checkboxFixAnchor.value == true)
 	{
 		writeLn("Fixing Anchor Points... (script may appear to be stuck)");
@@ -693,3 +722,4 @@ function CreateSubtitleLayer()
 var DCSubToAEPanel = createUI(this); // create the UI elements
 theSubtitleFile = new SubtitleFile();
 ( this instanceof Panel ) ? null : DCSubToAEPanel.show(); // if run as a ScriptUI script, do nothing, else call show()
+// DCSubToAEPanel.show();
