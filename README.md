@@ -6,6 +6,7 @@ Currently supports the following subtitle formats:
 - Interop (DCSubtitle XML)
 - TimeXML
 - SRT (SubRip)
+- FinalCut XMEML
 
 more to come...
 
@@ -13,7 +14,7 @@ The import right now is rather basic:
 - there is little to no error checking
 - SRT: text formatting is not supported (tags are just read as text)
 - Interop: images are not supported
-
+- FinalCut: Unicode characters can break the text conversion
 
 ### How does it work?
 Rather simple, actually (once one manages to bend your mind around the ExtendedScript API - which more often than not is for from obvious...). What we do is use the Layer Marker facility of After Effects to write each subtitle as a Layer Marker's comment onto a fresh layer. We then use Text Animators to keyframe certain text attributes at the correct in- and out-times of the subtitles.
