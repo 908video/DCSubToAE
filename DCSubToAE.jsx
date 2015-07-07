@@ -1,4 +1,4 @@
-// v 0.12
+// v 0.13
 
 // NOTES:
 // there is no validation of the XML yet
@@ -17,10 +17,12 @@ var STROKEWIDTH = 0.2;
 var LINEHEIGHT = 25;
 var FRAMERATESOURCE = 25;
 var SKEWAMOUNT = 15;
+var FADEIN = 0;
+var FADEOUT = 0;
 
 var labelInfoSubtitleID,labelInfoMovieTitle,labelInfoReelNumber,labelInfoLanguage,labelInfoLoadFontId;
 var dropdownFrom, dropdownTo, dropdownXmlFileType;
-var editFontRegular, editFontItalic, editFontSize, editStrokeWidth, editLineHeight;
+var editFontRegular, editFontItalic, editFontSize, editStrokeWidth, editLineHeight, editSkewAmount, editFadeIn, editFadeOut;
 var btOpenFile, btRun, btColorFill, btColorStroke;
 var checkboxChangeTimebase;
 var checkboxFixAnchor;
@@ -497,7 +499,18 @@ function createUI(thisObj) {
 	var grpSkew = newGroup(myPanel, 'row', ["fill","fill"], [300,20], [300,20]);
 		grpSkew.add('statictext',[undefined,undefined,80,20],"Faux Italic Strength:");
 		editSkewAmount = grpSkew.add('edittext',[undefined,undefined,50,20],SKEWAMOUNT);
-		editSkewAmount.onChange = OnSkewAmounChange;
+		editSkewAmount.onChange = OnSkewAmountChange;
+    
+    myPanel.add ("panel");
+
+	var grpFade = newGroup(myPanel, 'row', ["fill","fill"], [300,20], [300,20]);
+		grpFade.add('statictext',[undefined,undefined,80,20],"Fade In:");
+		editFadeIn = grpFade.add('edittext',[undefined,undefined,50,20],0);
+		editFadeIn.onChange = OnFadeInAmountChange;
+         grpFade.add('statictext',[undefined,undefined,80,20],"Fade Out:");
+         editFadeOut = grpFade.add('edittext',[undefined,undefined,50,20],0);
+		editFadeOut.onChange = OnFadeOutAmountChange;
+        
 	// var grpHorizontal = myPanel.add('group', undefined, ''); grpHorizontal.orientation = 'row';
 	// 	grpHorizontal.add('statictext',[undefined,undefined,60,20],"Alignment:");
 	// 	radioHAlignL = grpHorizontal.add('radiobutton',[undefined,undefined,70,20],"left");
@@ -562,7 +575,7 @@ function OnStrokeWidthChange () {
 	STROKEWIDTH = Number(editStrokeWidth.text);
 }
 
-function OnSkewAmounChange () {
+function OnSkewAmountChange () {
 	SKEWAMOUNT = Number(editSkewAmount.text);
 }
 
@@ -571,6 +584,13 @@ function OnLineHeightChange () {
 	LINEHEIGHT = Number(editLineHeight.text);
 }
 
+function OnFadeInAmountChange() {
+    FADEIN = Number(editFadeIn.text);
+}
+
+function OnFadeOutAmountChange() {
+    FADEOUT = Number(editFadeOut.text);
+}
 
 function OnColorFill()
 {
@@ -644,10 +664,29 @@ function CreateSubtitleLayer()
 		}
 
 		var myMarker = new MarkerValue(sub.text.toString());
-		subtitleTextLayer.property("Marker").setValueAtTime(timeIn, myMarker);
-		animatorStyleOpacity.setValueAtTime(timeIn, 100);
-		animatorStyleOpacity.setValueAtTime(timeOut, 0);
-		if (sub.italic == true)
+		
+
+        if (FADEIN > 0) {
+            subtitleTextLayer.property("Marker").setValueAtTime(timeIn-FADEIN/FRAMERATESOURCE, myMarker);
+            animatorStyleOpacity.setValueAtTime(timeIn-FADEIN/FRAMERATESOURCE, 0);
+            animatorStyleOpacity.setValueAtTime(timeIn, 100);
+        }
+        else
+        {
+            subtitleTextLayer.property("Marker").setValueAtTime(timeIn, myMarker);
+            animatorStyleOpacity.setValueAtTime(timeIn, 100);
+        }
+
+        if (FADEOUT > 0) {
+            animatorStyleOpacity.setValueAtTime(timeOut, 100);
+            animatorStyleOpacity.setValueAtTime(timeOut+FADEOUT/FRAMERATESOURCE, 0);
+        }
+        else
+        {
+            animatorStyleOpacity.setValueAtTime(timeOut, 0);
+        }
+           
+        if (sub.italic == true)
 			animatorStyleSkew.setValueAtTime(timeIn, SKEWAMOUNT);
 		else
 			animatorStyleSkew.setValueAtTime(timeIn, 0);
@@ -669,9 +708,16 @@ function CreateSubtitleLayer()
 	    animatorStyleAnchorPoint.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
 	};
 	write(".");
-	for (var i = animatorStyleOpacity.numKeys; i > 0; i--) {
-	    animatorStyleOpacity.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
-	};
+    if (FADEIN > 0 || FADEOUT > 0) {
+        for (var i = animatorStyleOpacity.numKeys; i > 0; i--) {
+            animatorStyleOpacity.setInterpolationTypeAtKey(i, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+        };
+    }
+    else {
+        for (var i = animatorStyleOpacity.numKeys; i > 0; i--) {
+            animatorStyleOpacity.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+        };
+    }
 	write(".");
 	for (var i = animatorStyleFillColor.numKeys; i > 0; i--) {
 	    animatorStyleFillColor.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
