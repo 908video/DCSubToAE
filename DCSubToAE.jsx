@@ -1,4 +1,4 @@
-// v 0.13
+// v 0.14
 
 // NOTES:
 // there is no validation of the XML yet
@@ -666,10 +666,10 @@ function CreateSubtitleLayer()
 		var myMarker = new MarkerValue(sub.text.toString());
 		
 
-        if (FADEIN > 0) {
-            subtitleTextLayer.property("Marker").setValueAtTime(timeIn-FADEIN/FRAMERATESOURCE, myMarker);
-            animatorStyleOpacity.setValueAtTime(timeIn-FADEIN/FRAMERATESOURCE, 0);
-            animatorStyleOpacity.setValueAtTime(timeIn, 100);
+        if (FADEIN !== 0) {
+            subtitleTextLayer.property("Marker").setValueAtTime(timeIn, myMarker);
+            animatorStyleOpacity.setValueAtTime(timeIn, 0);
+            animatorStyleOpacity.setValueAtTime(timeIn+FADEIN/FRAMERATESOURCE, 100);
         }
         else
         {
@@ -677,9 +677,9 @@ function CreateSubtitleLayer()
             animatorStyleOpacity.setValueAtTime(timeIn, 100);
         }
 
-        if (FADEOUT > 0) {
-            animatorStyleOpacity.setValueAtTime(timeOut, 100);
-            animatorStyleOpacity.setValueAtTime(timeOut+FADEOUT/FRAMERATESOURCE, 0);
+        if (FADEOUT !== 0) {
+            animatorStyleOpacity.setValueAtTime(timeOut-FADEOUT/FRAMERATESOURCE, 100);            
+            animatorStyleOpacity.setValueAtTime(timeOut, 0);
         }
         else
         {
@@ -708,7 +708,7 @@ function CreateSubtitleLayer()
 	    animatorStyleAnchorPoint.setInterpolationTypeAtKey(i, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
 	};
 	write(".");
-    if (FADEIN > 0 || FADEOUT > 0) {
+    if (FADEIN !== 0 || FADEOUT !== 0) {
         for (var i = animatorStyleOpacity.numKeys; i > 0; i--) {
             animatorStyleOpacity.setInterpolationTypeAtKey(i, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
         };
