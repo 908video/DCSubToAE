@@ -1,4 +1,4 @@
-// v 0.14
+// v 0.16
 
 // NOTES:
 // there is no validation of the XML yet
@@ -31,7 +31,7 @@ var pickerFill, pickerStroke;
 var radioVAlignT,radioVAlignM,radioVAlignB;
 var radioHAlignL,radioHAlignC,radioHAlignM;
 var frameRateList = ['23.976', '24', '25', '29.97', '30', '48', '50', '60'];
-var xmlFileTypes = ['DCSubtitle', 'TimeXML', 'SubRipSRT', 'FinalCut XMEML'];
+var xmlFileTypes = ['SubRipSRT', 'DCSubtitle', 'TimeXML', 'FinalCut XMEML', 'FinalCut XMEML Titles'];
 
 var theSubtitleFile;
 
@@ -52,7 +52,7 @@ function SubtitleFile() {
 }
 
 function encode_utf8( s ) {
-    return unescape( encodeURIComponent( s ) );
+    return unescape( encodeURIComponent(s) );
 }
 
 function decode_utf8( s ) {
@@ -66,7 +66,8 @@ function decode_utf8( s ) {
         return decodeURIComponent(t);
     }
     catch(err) {
-        return err.message;
+        // return err.message;
+		return s;
     }
 }
 
@@ -184,6 +185,17 @@ function GetXMLFromFile() {
 			theSubtitleFile.language = "n/a";
 		}
 	}
+	else if (dropdownXmlFileType.selection.text == "FinalCut XMEML Titles")
+	{
+		var res = theSubtitleFile.readXML();
+		if (res != undefined)
+		{
+			theSubtitleFile.subtitleId = "n/a";
+			theSubtitleFile.movieTitle = theSubtitleFile.fileName;
+			theSubtitleFile.reel = "n/a";
+			theSubtitleFile.language = "n/a";
+		}
+	}
 
 	if (res != undefined)
 	{
@@ -227,7 +239,7 @@ function timeCodeToSecondsSRT(t)
 		var s = Number(v[0]);
 		var ms = Number(v[1].substring(0,2));
 		// $.writeln(h,m,s,ms);
-		return (h * 60 * 60) + (m * 60) + s + ms/1000;
+		return (h * 60 * 60) + (m * 60) + s + ms/100;
 	}
 	catch(e)
 	{
@@ -252,7 +264,7 @@ function fileToSubtitleEntries(xml, format)
 	var subtitleArray = new Array();
 	var counter = 0;
 
-    $.writeln(format);
+    // $.writeln(format);
 
 	if (format == "DCSubtitle")
 	{
@@ -317,48 +329,51 @@ function fileToSubtitleEntries(xml, format)
 		for each(var line in lines)
 		{
 			counter++;
-			if (line.replace(/ /g,'') == "")
-			{
-				srtStep = 0;
-				if (counttext > 0)
-				{
-					subtitleArray.push(s);
-					counttext = 0;
-				}
-			}
-			else if (srtStep == 0)
-			{
-				writeLn("Reading Subs: " + line);
-				s = new SubtitleEntry();
-				s.text = "";
-				srtStep = 1;
-				counttext = 0;
-			}
-			else if (srtStep == 1)
-			{
-				var times = line.split(' ');
-				if (times[1] == "-->")
-				{
-					s.timeIn = timeCodeToSecondsSRT(times[0]);
-					s.timeOut = timeCodeToSecondsSRT(times[2]);
-					s.fadeIn = -1;
-					s.fadeOut = -1;
-					s.framerate = FRAMERATESOURCE;
-					s.italic = false;
-					s.fontName = FONTREGULAR;
-					srtStep = 2;
-				}
-			}
-			else if (srtStep == 2)
-			{	
-				if (counttext > 0) s.text += "\n";
-				counttext++;
-				s.text += line;
-				if (counter == lines.length)
-				{
-					subtitleArray.push(s);
-				}
-			}
+            //$.writeln(line.replace(/ /g,''))
+            try {
+                if (line.replace(/ /g,'') == "")
+                {
+                    srtStep = 0;
+                    if (counttext > 0)
+                    {
+                        subtitleArray.push(s);
+                        counttext = 0;
+                    }
+                }
+                else if (srtStep == 0)
+                {
+                    writeLn("Reading Subs: " + line);
+                    s = new SubtitleEntry();
+                    s.text = "";
+                    srtStep = 1;
+                    counttext = 0;
+                }
+                else if (srtStep == 1)
+                {
+                    var times = line.split(' ');
+                    if (times[1] == "-->")
+                    {
+                        s.timeIn = timeCodeToSecondsSRT(times[0]);
+                        s.timeOut = timeCodeToSecondsSRT(times[2]);
+                        s.fadeIn = -1;
+                        s.fadeOut = -1;
+                        s.framerate = FRAMERATESOURCE;
+                        s.italic = false;
+                        s.fontName = FONTREGULAR;
+                        srtStep = 2;
+                    }
+                }
+                else if (srtStep == 2)
+                {	
+                    if (counttext > 0) s.text += "\n";
+                    counttext++;
+                    s.text += line;
+                    if (counter == lines.length)
+                    {
+                        subtitleArray.push(s);
+                    }
+                }
+            } catch(err) {$.writeln(err)}
 		}
 	}
     else if (format == "FinalCut XMEML")
@@ -392,13 +407,61 @@ function fileToSubtitleEntries(xml, format)
                         var regex = new RegExp("&#13;", "g");
                         s.text = s.text.replace(regex, "\n");
                         s.text = decode_utf8(s.text);
-                        $.writeln(s.text);
+                        // $.writeln(s.text);
                         subtitleArray.push(s);
                     } // for each parameter
             } // for each generator
         } // for each track
     }
+    else if (format == "FinalCut XMEML Titles")
+    {
+		theSubtitleFile.count = 0;
 
+        for each(var track in xml.sequence.media.video.track)
+        {
+			var s = new SubtitleEntry();
+			for each(var element in track.elements()) 
+			{
+				//$.writeln(element.localName());
+				if (element.localName() == "transitionitem")
+				{
+					//$.writeln("new entry "+counter.toString())
+					s = new SubtitleEntry();
+					s.framerate = parseFloat(element.rate["timebase"].text()); // FRAMERATESOURCE;
+					//var FRAMERATESOURCE = s.framerate;
+					s.timeIn = parseFloat(element["start"].text()) / FRAMERATESOURCE;
+					s.timeOut = s.timeIn + 10;
+				}
+				else if (element.localName() == "generatoritem")
+				{
+					for each(var param in element.effect.parameter) {
+						if (param["parameterid"].toString() != "str") continue;
+						counter++;
+						theSubtitleFile.count++;
+						//clearOutput();
+						//writeLn("Reading Subs: " + counter.toString() + "/" + theSubtitleFile.count.toString() + "(" + (counter/theSubtitleFile.count*100).toFixed(1).toString() + "%)");
+						s.framerate = parseFloat(element.rate["timebase"].text()); // FRAMERATESOURCE;
+						//var FRAMERATESOURCE = s.framerate;
+						var tmptimeIn = parseFloat(element["in"].text()) / FRAMERATESOURCE;
+						var tmptimeOut = parseFloat(element["out"].text()) / FRAMERATESOURCE;
+						var duration = tmptimeOut - tmptimeIn;
+						s.timeOut = s.timeIn + duration;
+						s.fadeIn = FADEIN;
+						s.fadeOut = FADEOUT;
+						s.italic = false;
+						s.fontName = FONTREGULAR;
+						//s.text = param["value"].toString();
+						s.text = param.value.toString();
+						var regex = new RegExp("&#13;", "g");
+						s.text = s.text.replace(regex, "\n");
+						s.text = decode_utf8(s.text);
+						// $.writeln(s.text);
+						subtitleArray.push(s);
+					}
+				}
+			}
+        } // for each track
+    }
     return subtitleArray;
 }
 
@@ -458,7 +521,6 @@ function createUI(thisObj) {
         myPanel = new Window("palette", "DCSubToAE", undefined);
     }
     myPanel.preferredSize = [300, 350];
-    // var myPanel = ( thisObj instanceof Panel ) ? thisObj : new Window("palette", "Siemens Test", undefined, {resizeable: true});
     myPanel.alignChildren = ["fill","fill"];
     myPanel.orientation = "column";
 
@@ -466,7 +528,7 @@ function createUI(thisObj) {
 	grpXmlType.add('statictext',[undefined,undefined,80,16],"XML Type:");
 	dropdownXmlFileType = grpXmlType.add('dropdownlist', undefined, xmlFileTypes);
 	dropdownXmlFileType.selection = 0;
-    btOpenFile = grpXmlType.add("button", [undefined,undefined,100,25], "Open XML File").onClick = GetXMLFromFile;
+    btOpenFile = grpXmlType.add("button", [undefined,undefined,100,25], "Load File").onClick = GetXMLFromFile;
 
     myPanel.add ("panel");
 
@@ -646,10 +708,12 @@ function CreateSubtitleLayer()
 		writeLn("Writing keys... " + count.toString() + "/" + theSubtitleFile.count.toString() + "(" + (count/theSubtitleFile.count*100).toFixed(1).toString() + "%)");
          DCSubToAEPanel.update();
 		var timeIn = sub.timeIn * timeBase;
-		//$.writeln(timeIn);
+//		$.writeln(timeIn);
 		var timeOut = sub.timeOut * timeBase;
-		//$.writeln(timeOut);
-		//$.writeln("--");
+//		$.writeln(timeOut);
+        if (isNaN(timeIn) || isNaN(timeOut)) continue;
+        
+//		$.writeln("--");
 		if (count == 1) subtitleTextLayer.inPoint = timeIn;
          subtitleTextLayer.outPoint = timeOut;
          myComp.duration = Math.max(timeOut, myComp.duration);
